@@ -60,10 +60,11 @@ def draw_region_counts(frame, counted_centroids_per_region):
         y = start_y + i * line_height
         cv2.putText(frame, label, (start_x, y), font, font_scale, text_color, thickness)
 
+
 def main(video_source=0):
     global current_region
 
-    model = YOLO("yolov8x.pt")
+    model = YOLO("yolov8n.pt")
     model.to("cuda" if torch.cuda.is_available() else "cpu")
 
     cap = cv2.VideoCapture(video_source)
@@ -109,7 +110,7 @@ def main(video_source=0):
     print("Iniciando detección y conteo de personas...")
 
     region_polygons = [Polygon(r) for r in regions]
-    min_conf = 0.1  # baja confianza para detectar más personas lejanas
+    min_conf = 0.6  # baja confianza para detectar más personas lejanas
 
     tracked_centroids = []
     counted_centroids_per_region = [ [] for _ in regions ]
@@ -175,5 +176,6 @@ def main(video_source=0):
     print(f"✅ Video guardado en: {output_path}")
 
 if __name__ == "__main__":
-    main("sampleVideo.mp4")  # Cambia por 0 para cámara web
-
+    import sys
+    video_path = "files/sample3.mp4"
+    main(video_path)
