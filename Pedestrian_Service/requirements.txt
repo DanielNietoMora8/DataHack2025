@@ -1,0 +1,33 @@
+# Instalación de PyTorch con CUDA 12.6
+torch
+torchvision
+torchaudio
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+# Librerías científicas comunes
+numpy
+pandas
+matplotlib
+scipy
+
+# Manejo de imágenes y video
+opencv-python
+Pillow
+ultralytics
+
+# FastAPI y servidor ASGI
+fastapi
+uvicorn[standard]
+
+# Para definir regiones en la imagen (posiblemente con mouse)
+matplotlib
+shapely
+lap norfair filterpy scipy scikit-learn
+
+# Utilidades extra para procesamiento
+tqdm
+pydantic
+python-multipart  # para manejo de archivos en FastAPI
+
+git clone https://github.com/mikel-brostrom/Yolov5_StrongSORT_OSNet.git
+cd Yolov5_StrongSORT_OSNet
