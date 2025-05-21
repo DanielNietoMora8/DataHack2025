@@ -21,6 +21,7 @@ uvicorn[standard]
 
 # Para definir regiones en la imagen (posiblemente con mouse)
 matplotlib
+seaborn
 shapely
 lap norfair filterpy scipy scikit-learn
 

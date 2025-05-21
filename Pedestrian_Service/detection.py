@@ -5,6 +5,10 @@ from shapely.geometry import Point, Polygon
 from ultralytics import YOLO
 from scipy.spatial import distance
 import os
+from datetime import datetime
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 regions = []
 current_region = []
@@ -20,11 +24,11 @@ def click_event(event, x, y, flags, param):
         current_region = []
 
 def draw_regions(img, regions):
-    for i, region in enumerate(regions):
+    for region in regions:
         pts = np.array(region, np.int32)
         cv2.polylines(img, [pts], isClosed=True, color=(0, 0, 255), thickness=2)
 
-def draw_region_counts(frame, counted_centroids_per_region):
+def draw_region_counts(frame, counted_ids_per_region):
     start_x = 10
     start_y = 30
     line_height = 30
@@ -34,13 +38,8 @@ def draw_region_counts(frame, counted_centroids_per_region):
     bg_color = (0, 0, 0)
     text_color = (0, 255, 255)
 
-    max_width = 0
-    labels = []
-    for idx, counted in enumerate(counted_centroids_per_region):
-        label = f"Región {idx + 1}: {len(counted)}"
-        (w, h), _ = cv2.getTextSize(label, font, font_scale, thickness)
-        max_width = max(max_width, w)
-        labels.append(label)
+    labels = [f"Region {i+1}: {len(counted)}" for i, counted in enumerate(counted_ids_per_region)]
+    max_width = max(cv2.getTextSize(label, font, font_scale, thickness)[0][0] for label in labels)
 
     padding = 10
     box_width = max_width + padding * 2
@@ -69,7 +68,7 @@ def optimizar_video_entrada(ruta_entrada, ruta_salida, width=640, height=360, fp
         return
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(ruta_salida, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(ruta_salida, fourcc, 30, (width, height))
 
     while True:
         ret, frame = cap.read()
@@ -85,22 +84,21 @@ def optimizar_video_entrada(ruta_entrada, ruta_salida, width=640, height=360, fp
 def main(video_source=0):
     global current_region
 
-    model = YOLO("yolov8n.pt")
+    model = YOLO("yolov8x.pt")
     model.to("cuda" if torch.cuda.is_available() else "cpu")
 
     cap = cv2.VideoCapture(video_source)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps == 0: fps = 30
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
 
-    output_path = "salida_detectada.mp4"
+    output_path = "salida_detectada_5.mp4"
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     ret, frame = cap.read()
     if not ret:
-        print("Error al abrir video o cámara.")
+        print("❌ Error al abrir video o cámara.")
         return
 
     clone = frame.copy()
@@ -128,11 +126,14 @@ def main(video_source=0):
 
     cv2.destroyWindow("Selecciona regiones")
 
-    print("Iniciando detección y conteo de personas...")
+    print("🎬 Iniciando detección y conteo de personas...")
 
     region_polygons = [Polygon(r) for r in regions]
     min_conf = 0.7
     counted_ids_per_region = [set() for _ in regions]
+    registro_df_ids = set()
+    detections = []
+    frame_number = 0
 
     while True:
         ret, frame = cap.read()
@@ -149,13 +150,30 @@ def main(video_source=0):
                 obj_id = int(box.id.item()) if box.id is not None else None
 
                 if obj_id is None:
-                    continue  # si no hay ID, no se puede rastrear
+                    continue
 
                 for idx, polygon in enumerate(region_polygons):
                     if polygon.contains(Point(cx, cy)):
-                        if obj_id not in counted_ids_per_region[idx]:
+                        region_id = idx + 1
+                        unique_key = (region_id, obj_id)
+
+                        if unique_key not in registro_df_ids:
+                            registro_df_ids.add(unique_key)
+                            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             counted_ids_per_region[idx].add(obj_id)
-                            print(f"🧍 Persona ID {obj_id} contada en región {idx + 1}")
+
+                            detections.append({
+                                "region": region_id,
+                                "person_id": obj_id,
+                                "frame": frame_number,
+                                "fps": fps,
+                                "cx": cx,
+                                "cy": cy,
+                                "datetime": current_time
+                            })
+
+                            print(f"🧍 Persona ID {obj_id} contada en región {region_id}")
+
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         draw_regions(frame, regions)
@@ -164,6 +182,7 @@ def main(video_source=0):
         out.write(frame)
         cv2.imshow("Detección y Conteo", frame)
 
+        frame_number += 1
         if cv2.waitKey(1) == ord('q'):
             break
 
@@ -172,12 +191,18 @@ def main(video_source=0):
     cv2.destroyAllWindows()
     print(f"✅ Video guardado en: {output_path}")
 
-if __name__ == "__main__":
-    video_path_original = "files/sampleVideo.mp4"
-    video_path_optimizado = "files/sampleVideo_optimizado.mp4"
+    # Crear DataFrame y guardar
+    df = pd.DataFrame(detections)
+    df.to_csv("detecciones_5.csv", index=False)
+    print("📊 Detecciones guardadas en detecciones_5.csv")
 
-    optimizar = input("¿Desea Optimizar video?")
-    if optimizar == "y":
+
+if __name__ == "__main__":
+    video_path_original = "files/sample5.mp4"
+    video_path_optimizado = "files/sample5_optimizado.mp4"
+
+    optimizar = input("¿Desea optimizar el video? (y/n): ")
+    if optimizar.lower() == "y":
         optimizar_video_entrada(video_path_original, video_path_optimizado)
         main(video_path_optimizado)
     else:
